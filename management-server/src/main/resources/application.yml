@@ -1,0 +1,51 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: sentry-management-server
+  
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/sentry_db}
+    username: ${DB_USERNAME:sentry}
+    password: ${DB_PASSWORD:sentry_password}
+    driver-class-name: org.postgresql.Driver
+  
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+# JWT Configuration
+jwt:
+  secret: ${JWT_SECRET:your-256-bit-secret-key-change-in-production-minimum-32-chars}
+  expiration: 86400000  # 24 hours in milliseconds
+
+# AI Service API Key
+ai:
+  api-key: ${AI_API_KEY:changeme-api-key}
+
+# WebSocket Configuration
+websocket:
+  allowed-origins: "*"
+
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when_authorized
+
+# Logging Configuration
+logging:
+  level:
+    com.sentry: INFO
+    org.springframework.security: INFO
+    org.hibernate.SQL: WARN

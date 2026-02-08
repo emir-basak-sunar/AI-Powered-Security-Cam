@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: sentry-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-sentry_db}
+      - POSTGRES_USER=${POSTGRES_USER:-sentry}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-sentry_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    networks:
+      - sentry-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sentry} -d ${POSTGRES_DB:-sentry_db}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Java Spring Boot Management Server
+  management-server:
+    build:
+      context: ./management-server
+      dockerfile: Dockerfile
+    container_name: sentry-management
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DB_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-sentry_db}
+      - DB_USERNAME=${POSTGRES_USER:-sentry}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-sentry_password}
+      - JWT_SECRET=${JWT_SECRET:-your-256-bit-secret-key-change-in-production-minimum-32-chars}
+      - AI_API_KEY=${AI_API_KEY:-changeme-api-key}
+    ports:
+      - "8080:8080"
+    networks:
+      - sentry-network
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Python AI Engine
+  ai-engine:
+    build:
+      context: ./ai-engine
+      dockerfile: Dockerfile
+    container_name: sentry-ai-engine
+    restart: unless-stopped
+    depends_on:
+      management-server:
+        condition: service_healthy
+    environment:
+      - BACKEND_URL=http://management-server:8080
+      - AI_API_KEY=${AI_API_KEY:-changeme-api-key}
+      - DEBUG=${DEBUG:-false}
+      - MODEL_PATH=${MODEL_PATH:-yolov8n.pt}
+      - DETECTION_CONFIDENCE=${DETECTION_CONFIDENCE:-0.6}
+      - AUDIO_THRESHOLD=${AUDIO_THRESHOLD:-0.7}
+    ports:
+      - "8000:8000"
+    networks:
+      - sentry-network
+    # Uncomment for GPU support with NVIDIA
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+networks:
+  sentry-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
