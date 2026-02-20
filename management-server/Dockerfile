@@ -1,26 +1,17 @@
-FROM eclipse-temurin:21-jdk-alpine AS build
+# Build stage - Maven pre-installed (Debian-based, better DNS resolution)
+FROM maven:3.9-eclipse-temurin-21 AS build
 
 WORKDIR /app
 
-# Copy Maven wrapper and pom.xml
+# Copy pom.xml and source code
 COPY pom.xml .
-COPY .mvn .mvn
-COPY mvnw .
-
-# Make mvnw executable
-RUN chmod +x mvnw
-
-# Download dependencies (cacheable layer)
-RUN ./mvnw dependency:go-offline -B
-
-# Copy source code
 COPY src ./src
 
-# Build the application
-RUN ./mvnw package -DskipTests -B
+# Build the application (downloads dependencies + compiles + packages)
+RUN mvn package -DskipTests -B
 
-# Runtime stage
-FROM eclipse-temurin:21-jre-alpine
+# Runtime stage - lightweight
+FROM eclipse-temurin:21-jre-jammy
 
 WORKDIR /app
 

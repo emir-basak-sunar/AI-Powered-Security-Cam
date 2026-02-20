@@ -4,8 +4,8 @@ WORKDIR /app
 
 # Install system dependencies for OpenCV and PyAudio
 RUN apt-get update && apt-get install -y \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
+    libgl1 \
+    libglib2.0-0t64 \
     libsm6 \
     libxext6 \
     libxrender-dev \
@@ -16,7 +16,15 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements first for caching
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+
+# Install CPU-only PyTorch first (much smaller than CUDA version: ~150MB vs ~670MB)
+RUN pip install --no-cache-dir --timeout 300 \
+    torch==2.1.2+cpu \
+    torchvision==0.16.2+cpu \
+    --extra-index-url https://download.pytorch.org/whl/cpu
+
+# Install remaining dependencies (skip torch/torchvision since already installed)
+RUN pip install --no-cache-dir --timeout 300 -r requirements.txt
 
 # Copy application code
 COPY app/ ./app/
